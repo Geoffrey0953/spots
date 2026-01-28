@@ -1,12 +1,20 @@
-function App() {
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import HomeFeed from './pages/HomeFeed';
 
+function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <button className="bg-blue-600 hover:bg-blue-700 text-white text-4xl font-bold py-8 px-16 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
-          Hello World!
-      </button>
-    </div>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/feed" element={<HomeFeed />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
