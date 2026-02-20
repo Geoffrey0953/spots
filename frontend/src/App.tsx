@@ -3,6 +3,8 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import HomeFeed from './pages/HomeFeed';
+import VerifyEmail from './pages/VerifyEmail';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
@@ -11,7 +13,10 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/feed" element={<HomeFeed />} />
+        <Route path="/verify" element={<VerifyEmail />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/feed" element={<HomeFeed />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

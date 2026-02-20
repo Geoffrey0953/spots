@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { signOut, getCurrentUser } from 'aws-amplify/auth';
 
 // Sample data for trending lists
 const trendingLists = [
@@ -90,10 +91,17 @@ export default function HomeFeed() {
   const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
+  const [displayName, setDisplayName] = useState('');
 
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    navigate('/login');
+  useEffect(() => {
+    getCurrentUser()
+      .then(({ username }) => setDisplayName(username))
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
   };
 
   const handleCreateList = (e: React.FormEvent) => {
@@ -179,7 +187,7 @@ export default function HomeFeed() {
           transition={{ duration: 0.5 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-bold text-gray-900">Welcome back, Admin!</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Welcome back{displayName ? `, ${displayName}` : ''}!</h1>
           <p className="text-gray-600 mt-1">Discover trending spots and see what your friends are up to.</p>
         </motion.div>
 

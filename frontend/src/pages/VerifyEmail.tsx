@@ -1,14 +1,18 @@
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
-import { signIn } from 'aws-amplify/auth';
+import { confirmSignUp, resendSignUpCode } from 'aws-amplify/auth';
 
-export default function Login() {
+export default function VerifyEmail() {
   const navigate = useNavigate();
-  const [usernameOrEmail, setUsernameOrEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [searchParams] = useSearchParams();
+  const username = searchParams.get('username') ?? '';
+  const email = searchParams.get('email') ?? '';
+
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,16 +20,23 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { nextStep } = await signIn({ username: usernameOrEmail, password });
-      if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
-        navigate(`/verify?email=${encodeURIComponent(email)}`);
-      } else {
-        navigate('/feed');
-      }
+      await confirmSignUp({ username, confirmationCode: code });
+      navigate('/login');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Sign in failed');
+      setError(err instanceof Error ? err.message : 'Verification failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError('');
+    setResendMessage('');
+    try {
+      await resendSignUpCode({ username });
+      setResendMessage('Verification code resent. Check your email.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to resend code');
     }
   };
 
@@ -74,8 +85,10 @@ export default function Login() {
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl shadow-amber-100/50 p-8">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>
-            <p className="text-gray-600">Sign in to your account</p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Verify your email</h1>
+            <p className="text-gray-600">
+              We sent a code to <span className="font-medium text-gray-800">{email}</span>
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -84,52 +97,25 @@ export default function Login() {
                 {error}
               </div>
             )}
+            {resendMessage && (
+              <div className="p-3 rounded-xl bg-green-50 border border-green-200 text-green-600 text-sm">
+                {resendMessage}
+              </div>
+            )}
 
             <div>
-              <label htmlFor="usernameOrEmail" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Username or Email
+              <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Verification Code
               </label>
               <input
                 type="text"
-                id="usernameOrEmail"
-                value={usernameOrEmail}
-                onChange={(e) => setUsernameOrEmail(e.target.value)}
-                placeholder="Username or email address"
+                id="code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter 6-digit code"
                 required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all text-center text-lg tracking-widest"
               />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all"
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                />
-                <span className="text-gray-600">Remember me</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => console.log('Forgot password clicked')}
-                className="text-amber-600 hover:text-amber-700 font-medium"
-              >
-                Forgot password?
-              </button>
             </div>
 
             <motion.button
@@ -139,31 +125,32 @@ export default function Login() {
               disabled={loading}
               className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-shadow disabled:opacity-60"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Verifying...' : 'Verify Email'}
             </motion.button>
           </form>
 
           <div className="mt-6 text-center text-sm text-gray-600">
-            Don't have an account?{' '}
-            <Link
-              to="/signup"
+            Didn't receive a code?{' '}
+            <button
+              type="button"
+              onClick={handleResend}
               className="text-amber-600 hover:text-amber-700 font-medium"
             >
-              Sign up
-            </Link>
+              Resend code
+            </button>
           </div>
         </div>
 
         {/* Back link */}
         <div className="mt-6 text-center">
           <Link
-            to="/"
+            to="/login"
             className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back to home
+            Back to login
           </Link>
         </div>
       </motion.div>
