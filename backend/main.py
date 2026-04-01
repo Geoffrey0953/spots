@@ -1,17 +1,30 @@
-import os
-from fastapi import FastAPI, Depends, HTTPException, status
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
-import httpx
-from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import AsyncSession
 
-load_dotenv()
+from auth import get_current_user
+from database import get_session, init_db
+from routers import feed, lists, search, spots, users
+from routers.users import upsert_user
 
-AWS_REGION = os.getenv("AWS_REGION", "us-west-2")
-COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 
-app = FastAPI()
+# ---------------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,64 +34,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-security = HTTPBearer()
+app.include_router(users.router)
+app.include_router(lists.router)
+app.include_router(spots.router)
+app.include_router(feed.router)
+app.include_router(search.router)
 
 
-class CognitoJWTVerifier:
-    def __init__(self):
-        self.jwks = None
-        self.jwks_url = (
-            f"https://cognito-idp.{AWS_REGION}.amazonaws.com"
-            f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
-        )
-        self.issuer = (
-            f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
-        )
-
-    async def get_jwks(self) -> dict:
-        if self.jwks is None:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(self.jwks_url)
-                response.raise_for_status()
-                self.jwks = response.json()
-        return self.jwks
-
-    async def verify_token(self, token: str) -> dict:
-        try:
-            header = jwt.get_unverified_header(token)
-            kid = header.get("kid")
-
-            jwks = await self.get_jwks()
-            key = next(
-                (k for k in jwks.get("keys", []) if k.get("kid") == kid), None
-            )
-            if key is None:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Public key not found",
-                )
-
-            claims = jwt.decode(
-                token,
-                key,
-                algorithms=["RS256"],
-                issuer=self.issuer,
-            )
-            return claims
-        except JWTError as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=str(e),
-            )
-
-
-cognito_verifier = CognitoJWTVerifier()
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),) -> dict:
-        return await cognito_verifier.verify_token(credentials.credentials)
-
+# ---------------------------------------------------------------------------
+# Core endpoints
+# ---------------------------------------------------------------------------
 
 @app.get("/")
 async def health_check():
@@ -86,5 +51,10 @@ async def health_check():
 
 
 @app.get("/auth/me")
-async def get_me(user: dict = Depends(get_current_user)):
+async def get_me(
+    claims: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Verify Cognito JWT and upsert user row on every login."""
+    user = await upsert_user(claims, session)
     return {"user": user}

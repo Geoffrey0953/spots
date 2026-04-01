@@ -3,3 +3,7 @@ uvicorn[standard]
 python-jose[cryptography]
 python-dotenv
 httpx
+sqlmodel
+asyncpg
+alembic
+greenlet
